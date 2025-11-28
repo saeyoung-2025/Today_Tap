@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>나의 데이 앱</title>
+
+<link rel="icon" type="image/png" href="favicon.png">
+
+    <script src="https://unpkg.com/dexie@3.2.3/dist/dexie.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ffeef8 0%, #ffe0f0 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #ffeef8 0%, #ffe0f0 100%);
+            opacity: 0.2;
+            z-index: -1;
+        }
+        
+        /* 테마별 배경 오버레이 */
+        body.theme-yellow::before {
+            background: linear-gradient(135deg, #fff9e6 0%, #fffacd 100%);
+        }
+        
+        body.theme-blue::before {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+        
+        body.theme-pink::before {
+            background: linear-gradient(135deg, #ffeef8 0%, #ffe0f0 100%);
+        }
+        
+        body.theme-white::before {
+            background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 30px;
+            padding: 30px 20px 20px 20px;
+            box-shadow: 0 10px 40px rgba(233, 30, 99, 0.2);
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #e91e63;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .color-dots {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .dot {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .dot:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        .dot.active {
+            border: 3px solid #e91e63;
+            transform: scale(1.1);
+        }
+
+        .dot.yellow { background: #ffd700; }
+        .dot.blue { background: #64b5f6; }
+        .dot.pink { background: #ec407a; }
+        .dot.white { background: #ffffff; border: 2px solid #ddd; }
+
+        .app-card {
+            background: linear-gradient(135deg, #ffc1e3 0%, #ffb3d9 100%);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: none;
+            width: 100%;
+            text-align: left;
+        }
+        
+        /* 테마별 앱 카드 색상 */
+        body.theme-yellow .app-card {
+            background: linear-gradient(135deg, #fff176 0%, #ffd54f 100%);
+        }
+        
+        body.theme-blue .app-card {
+            background: linear-gradient(135deg, #81d4fa 0%, #4fc3f7 100%);
+        }
+        
+        body.theme-pink .app-card {
+            background: linear-gradient(135deg, #ffc1e3 0%, #ffb3d9 100%);
+        }
+        
+        body.theme-white .app-card {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+        }
+
+        .app-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(233, 30, 99, 0.3);
+        }
+
+        .app-card:active {
+            transform: translateY(-2px);
+        }
+
+        .app-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 100%);
+            pointer-events: none;
+        }
+
+        .app-icon {
+            font-size: 3em;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .app-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #c2185b;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+
+        .app-subtitle {
+            font-size: 0.9em;
+            color: #880e4f;
+            text-align: center;
+            opacity: 0.8;
+        }
+
+        /* 하단 네비게이션 바 - 컨테이너 내부 */
+        .bottom-nav {
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 15px 0;
+            border-top: 2px solid #ffc1e3;
+            margin-top: 20px;
+            border-radius: 0 0 30px 30px;
+            margin-left: -20px;
+            margin-right: -20px;
+            margin-bottom: -20px;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            padding: 5px 15px;
+            border-radius: 10px;
+        }
+
+        .nav-item:hover {
+            background: #ffeef8;
+        }
+
+        .nav-item.active {
+            background: #ffc1e3;
+        }
+
+        .nav-icon {
+            font-size: 1.5em;
+            color: #e91e63;
+        }
+
+        .nav-label {
+            font-size: 0.7em;
+            color: #c2185b;
+            font-weight: bold;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .page-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+            flex-grow: 1;
+        }
+
+        .page-content.active {
+            display: block;
+        }
+
+        /* 각 앱 페이지용 iframe 스타일 */
+        .app-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 15px;
+            background: white;
+        }
+
+        .iframe-container {
+            width: 100%;
+            height: calc(100vh - 250px);
+            min-height: 500px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 메인 홈 화면 -->
+        <div id="homePage" class="page-content active">
+            <div class="header">
+                <div class="title">
+                    ✨ 나의 데이 앱 ✨
+                </div>
+                <div class="color-dots">
+                    <div class="dot yellow" onclick="changeBackground('yellow')" title="노란색 테마"></div>
+                    <div class="dot blue" onclick="changeBackground('blue')" title="파란색 테마"></div>
+                    <div class="dot pink active" onclick="changeBackground('pink')" title="핑크색 테마"></div>
+                    <div class="dot white" onclick="changeBackground('white')" title="화이트 테마"></div>
+                </div>
+            </div>
+
+            <button class="app-card" onclick="showPage('todo')">
+                <div class="app-icon">🎯</div>
+                <div class="app-title">오늘의 할 일 (TODO)</div>
+                <div class="app-subtitle">📊 0 / 60P</div>
+            </button>
+
+            <button class="app-card" onclick="showPage('diary')">
+                <div class="app-icon">📝</div>
+                <div class="app-title">나의 알기장 (DIARY)</div>
+                <div class="app-subtitle">✍️ 나의 기록</div>
+            </button>
+
+            <button class="app-card" onclick="showPage('budget')">
+                <div class="app-icon">💰</div>
+                <div class="app-title">가계부 (BUDGET)</div>
+                <div class="app-subtitle">💵 222,000원</div>
+            </button>
+        </div>
+
+        <!-- TODO 페이지 -->
+        <div id="todoPage" class="page-content">
+            <div class="iframe-container">
+                <iframe id="todoFrame" class="app-iframe" src="todo.html"></iframe>
+            </div>
+        </div>
+
+        <!-- DIARY 페이지 -->
+        <div id="diaryPage" class="page-content">
+            <div class="iframe-container">
+                <iframe id="diaryFrame" class="app-iframe" src="diary.html"></iframe>
+            </div>
+        </div>
+
+        <!-- BUDGET 페이지 -->
+        <div id="budgetPage" class="page-content">
+            <div class="iframe-container">
+                <iframe id="budgetFrame" class="app-iframe" src="budget.html"></iframe>
+            </div>
+        </div>
+
+        <!-- 하단 네비게이션 (컨테이너 내부로 이동) -->
+        <div class="bottom-nav">
+            <button class="nav-item active" onclick="showPage('home')" id="navHome">
+                <div class="nav-icon">🏠</div>
+                <div class="nav-label">홈</div>
+            </button>
+            <button class="nav-item" onclick="showPage('todo')" id="navTodo">
+                <div class="nav-icon">🎯</div>
+                <div class="nav-label">할일</div>
+            </button>
+            <button class="nav-item" onclick="showPage('diary')" id="navDiary">
+                <div class="nav-icon">📝</div>
+                <div class="nav-label">일기</div>
+            </button>
+            <button class="nav-item" onclick="showPage('budget')" id="navBudget">
+                <div class="nav-icon">💰</div>
+                <div class="nav-label">가계부</div>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 배경색 테마 변경 함수
+        function changeBackground(color) {
+            const body = document.body;
+            
+            // 기존 테마 클래스 제거
+            body.classList.remove('theme-yellow', 'theme-blue', 'theme-pink', 'theme-white');
+            
+            // 모든 dot의 active 클래스 제거
+            document.querySelectorAll('.dot').forEach(dot => {
+                dot.classList.remove('active');
+            });
+            
+            // 클릭한 dot에 active 클래스 추가
+            event.target.classList.add('active');
+            
+            // 배경색 및 테마 클래스 변경 (불투명한 배경)
+            body.classList.add(`theme-${color}`);
+            
+            switch(color) {
+                case 'yellow':
+                    body.style.background = 'linear-gradient(135deg, #fff9e6 0%, #fffacd 100%)';
+                    break;
+                case 'blue':
+                    body.style.background = 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)';
+                    break;
+                case 'pink':
+                    body.style.background = 'linear-gradient(135deg, #ffeef8 0%, #ffe0f0 100%)';
+                    break;
+                case 'white':
+                    body.style.background = 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)';
+                    break;
+            }
+            
+            // 로컬 스토리지에 저장
+            localStorage.setItem('bgColor', color);
+        }
+        
+        // 페이지 로드 시 저장된 배경색 적용
+        window.addEventListener('load', function() {
+            const savedColor = localStorage.getItem('bgColor') || 'pink';
+            
+            // 테마 적용
+            document.body.classList.add(`theme-${savedColor}`);
+            
+            // 배경색 적용
+            switch(savedColor) {
+                case 'yellow':
+                    document.body.style.background = 'linear-gradient(135deg, #fff9e6 0%, #fffacd 100%)';
+                    break;
+                case 'blue':
+                    document.body.style.background = 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)';
+                    break;
+                case 'pink':
+                    document.body.style.background = 'linear-gradient(135deg, #ffeef8 0%, #ffe0f0 100%)';
+                    break;
+                case 'white':
+                    document.body.style.background = 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)';
+                    break;
+            }
+            
+            // 저장된 색상의 dot에 active 클래스 추가
+            document.querySelectorAll('.dot').forEach(dot => {
+                dot.classList.remove('active');
+            });
+            const savedDot = document.querySelector(`.dot.${savedColor}`);
+            if (savedDot) {
+                savedDot.classList.add('active');
+            }
+        });
+
+        function showPage(pageName) {
+            // 모든 페이지 숨기기
+            document.querySelectorAll('.page-content').forEach(page => {
+                page.classList.remove('active');
+            });
+
+            // 모든 네비게이션 아이템 비활성화
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // 선택된 페이지 표시
+            if (pageName === 'home') {
+                document.getElementById('homePage').classList.add('active');
+                document.getElementById('navHome').classList.add('active');
+            } else if (pageName === 'todo') {
+                document.getElementById('todoPage').classList.add('active');
+                document.getElementById('navTodo').classList.add('active');
+            } else if (pageName === 'diary') {
+                document.getElementById('diaryPage').classList.add('active');
+                document.getElementById('navDiary').classList.add('active');
+            } else if (pageName === 'budget') {
+                document.getElementById('budgetPage').classList.add('active');
+                document.getElementById('navBudget').classList.add('active');
+            }
+
+            // 화면 맨 위로 스크롤
+            window.scrollTo(0, 0);
+        }
+    </script>
+</body>
+</html>

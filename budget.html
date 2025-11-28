@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today</title>
+    <link rel="icon" type="image/png" href="favicon.png"> 
+    
+    <script src="https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <style>
+        /* =================================================== */
+        /* ✨ 디자인 변경: 10대에게 어필할 수 있는 산뜻한 색상 및 스타일 */
+        /* =================================================== */
+        :root {
+            --main-bg: #f5f7fa; /* 라이트 그레이 배경 유지 */
+            --main-accent: #0081a7; /* [변경됨] Vibrant Deep Aqua/Teal (활기찬 메인 컬러) */
+            --secondary-bg: #ffffff;
+            --income-color: #38c172; /* [변경됨] 살짝 펀치 있는 그린 */
+            --expense-color: #f15a5a; /* [변경됨] 살짝 펀치 있는 레드/핑크 */
+            --text-color: #2c3e50;
+            --shadow-light: 0 6px 10px rgba(0, 0, 0, 0.15); /* [변경됨] 더 깊어진 그림자 */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--main-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px;
+            padding: 20px;
+            background-color: var(--secondary-bg);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            color: var(--main-accent);
+            margin-bottom: 5px;
+            font-size: 2.2em; /* 제목 폰트 크기 증가 */
+            font-weight: 900; /* 제목 두께 강조 */
+        }
+
+        /* --- 페이지네이션/네비게이션 --- */
+        .navigation-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px 0;
+            border-bottom: 2px solid var(--main-accent);
+        }
+
+        .nav-button {
+            background-color: var(--main-accent);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* 버튼 그림자 추가 */
+        }
+
+        .nav-button:hover:not(:disabled) {
+            background-color: #006b8c; /* 메인 색상보다 어둡게 */
+        }
+
+        .nav-button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        #pageIndicator {
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        /* --- 카드 스타일 --- */
+        .card {
+            background-color: #f8f8f8;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 10px; /* 둥근 모서리 조정 */
+            box-shadow: var(--shadow-light);
+        }
+
+        .card h2 {
+            color: var(--main-accent);
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.5em; /* 부제목 폰트 크기 증가 */
+        }
+
+        /* --- 잔액/통계 --- */
+        .balance-summary {
+            text-align: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .balance-summary p {
+            font-size: 1.1em;
+            margin: 5px 0;
+        }
+
+        #currentBalance {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .monthly-stats {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            padding: 10px 0;
+        }
+
+        .monthly-stats div {
+            flex-basis: 30%;
+        }
+
+        .income-text {
+            color: var(--income-color);
+            font-weight: bold;
+        }
+
+        .expense-text {
+            color: var(--expense-color);
+            font-weight: bold;
+        }
+
+        .balance-text {
+            color: var(--main-accent);
+            font-weight: bold;
+        }
+
+        /* --- 입력 폼 --- */
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1em;
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .action-buttons button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: bold;
+        }
+
+        #saveBudgetBtn {
+            background-color: var(--income-color);
+            color: white;
+        }
+
+        #saveBudgetBtn:hover {
+            background-color: #31a364;
+        }
+
+        /* --- 장부 테이블 --- */
+        .monthly-ledger-container {
+            margin-bottom: 30px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .month-title {
+            background-color: var(--main-accent);
+            color: white;
+            padding: 10px;
+            font-weight: bold;
+            font-size: 1.1em;
+            text-align: center;
+        }
+
+        .month-summary {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background-color: #eef;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .ledger-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        .ledger-table th, .ledger-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .ledger-table th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+
+        .ledger-table tbody tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .memo-cell {
+            font-size: 0.9em;
+            color: #666;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .action-cell {
+            text-align: center;
+            width: 80px;
+        }
+
+        .view-edit-btn {
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        /* --- 목표 및 통계 뷰 --- */
+        .goal-card {
+            text-align: center;
+        }
+
+        .goal-actions {
+            margin-top: 15px;
+        }
+
+        #goalMemoInput {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        #saveGoalBtn, #editGoalBtn {
+            background-color: var(--main-accent);
+            color: white;
+        }
+
+        #clearGoalBtn {
+            background-color: var(--expense-color);
+            color: white;
+        }
+
+        .five-year-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .year-slot {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .year-slot strong {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            color: var(--text-color);
+        }
+
+        /* --- 모달 (수정/삭제) --- */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: var(--secondary-bg);
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+        }
+
+        .modal-input-group {
+            margin-bottom: 15px;
+        }
+
+        .modal-input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .modal-input-group input,
+        .modal-input-group select,
+        .modal-input-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .modal-actions {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-actions button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+        }
+
+        #modalSaveBtn_new {
+            background-color: var(--main-accent);
+        }
+
+        #modalDeleteBtn_new {
+            background-color: var(--expense-color);
+        }
+
+        /* --- 전역 초기화 버튼 (3페이지 전용) --- */
+        #globalActions {
+            margin-top: 20px;
+            text-align: right;
+            display: none; /* JS에서 제어 */
+        }
+
+        #globalResetBtn {
+            background-color: #830000;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        #globalResetBtn:hover {
+            background-color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <h1>💰 Today Money 💸</h1>
+        <p class="balance-summary">
+            총 잔액: <span id="currentBalance">0원</span>
+        </p>
+    </header>
+
+    <div class="navigation-bar">
+        <button id="prevPageBtn" class="nav-button">이전</button>
+        <span id="pageIndicator">페이지 1 / 3</span>
+        <button id="nextPageBtn" class="nav-button">다음</button>
+    </div>
+
+    <div id="mainViewContainer">
+        <div id="recordView" class="page-content">
+            <div class="card input-card">
+                <h2>📝 새 거래 기록</h2>
+                <div class="input-group">
+                    <label for="budgetDate">날짜</label>
+                    <input type="date" id="budgetDate" required>
+                </div>
+                <div class="input-group">
+                    <label for="budgetType">유형</label>
+                    <select id="budgetType" required>
+                        <option value="expense">지출</option>
+                        <option value="income">수입</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="budgetAmount">금액 (원)</label>
+                    <input type="number" id="budgetAmount" placeholder="금액" required min="1">
+                </div>
+                <div class="input-group">
+                    <label for="budgetCategory">카테고리</label>
+                    <select id="budgetCategory" required></select>
+                </div>
+                <div class="input-group">
+                    <label for="budgetMemo">메모 (선택)</label>
+                    <textarea id="budgetMemo" placeholder="간단한 메모"></textarea>
+                </div>
+                <div class="action-buttons">
+                    <button id="saveBudgetBtn">저장</button>
+                    </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 현재 월 현황</h2>
+                <div class="monthly-stats">
+                    <div><p id="monthlyIncome" class="income-text">수입: 0원</p></div>
+                    <div><p id="monthlyExpense" class="expense-text">지출: 0원</p></div>
+                    <div><p id="monthlyBalance" class="balance-text">잔액: 0원</p></div>
+                </div>
+                <canvas id="dailyExpenseChart"></canvas>
+            </div>
+        </div>
+
+        <div id="monthlyLedgerView" class="page-content" style="display:none;">
+            <div class="card">
+                <h2>📑 월별 장부 목록</h2>
+                <div id="monthlyLedgersContent">
+                    </div>
+            </div>
+        </div>
+
+        <div id="goalAndStatsView" class="page-content" style="display:none;">
+            <div class="card goal-card">
+                <h2>🎯 나의 목표</h2>
+                <div class="input-group">
+                    <label for="goalMemoInput">장기 재정 목표 설정</label>
+                    <textarea id="goalMemoInput" placeholder="예) 5년 안에 주택 자금 5천만원 모으기"></textarea>
+                </div>
+                <div class="goal-actions action-buttons">
+                    <button id="saveGoalBtn">목표 저장</button>
+                    <button id="clearGoalBtn">목표 삭제</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📈 5개년 누적 통계</h2>
+                <div id="fiveYearStatsContent" class="five-year-stats">
+                    </div>
+            </div>
+            
+            <div id="globalActions" style="display:none;">
+                <button id="globalResetBtn">⚠️ 모든 데이터 초기화 (초기화 페이지)</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="budgetModal" class="modal">
+    <div class="modal-content">
+        </div>
+</div>
+
+<script>
+// =========================================================================
+// 🧩 JavaScript 로직 (BUDGET 전용) - V9 (수정 버튼 버그 수정 완료)
+// =========================================================================
+
+const db = new Dexie('BudgetAppDB');
+db.version(2).stores({
+    budgets: '++id, date, type, amount, category',
+    goals: 'id',
+});
+
+let dailyExpenseChartInstance = null;
+let currentPage = 1;
+const totalPages = 3;
+
+// --- DOM 요소 (주의: 아래 변수들은 openBudgetModal에서 재할당됩니다! -> let으로 선언) ---
+// 입력
+const budgetDateInput = document.getElementById('budgetDate');
+const budgetTypeInput = document.getElementById('budgetType');
+const budgetAmountInput = document.getElementById('budgetAmount');
+const budgetCategoryInput = document.getElementById('budgetCategory');
+const budgetMemoInput = document.getElementById('budgetMemo');
+const saveBudgetBtn = document.getElementById('saveBudgetBtn');
+// 출력/통계
+const currentBalanceEl = document.getElementById('currentBalance');
+const monthlyLedgersContentEl = document.getElementById('monthlyLedgersContent');
+const fiveYearStatsContentEl = document.getElementById('fiveYearStatsContent');
+const monthlyIncomeEl = document.getElementById('monthlyIncome');
+const monthlyExpenseEl = document.getElementById('monthlyExpense');
+const monthlyBalanceEl = document.getElementById('monthlyBalance');
+
+// 목표 설정
+const goalMemoInputEl = document.getElementById('goalMemoInput');
+const saveGoalBtn = document.getElementById('saveGoalBtn');
+const clearGoalBtn = document.getElementById('clearGoalBtn');
+
+// 목표 보기 모드에 사용될 요소들 (DOM에 아직 없는 요소는 JS에서 생성)
+const goalDisplayArea = document.createElement('div');
+goalDisplayArea.id = 'goalDisplayArea';
+goalDisplayArea.style.whiteSpace = 'pre-wrap';
+goalDisplayArea.style.minHeight = '120px';
+goalDisplayArea.style.padding = '12px';
+goalDisplayArea.style.border = '1px solid #ccc';
+goalDisplayArea.style.borderRadius = '8px';
+goalDisplayArea.style.backgroundColor = '#f9f9f9';
+
+const editGoalBtn = document.createElement('button');
+editGoalBtn.id = 'editGoalBtn';
+editGoalBtn.textContent = '목표 수정';
+editGoalBtn.style.backgroundColor = 'var(--main-accent)';
+editGoalBtn.style.color = 'white';
+editGoalBtn.style.padding = '12px 18px';
+editGoalBtn.style.borderRadius = '8px';
+editGoalBtn.style.fontWeight = 'bold';
+editGoalBtn.style.cursor = 'pointer';
+editGoalBtn.style.border = 'none';
+// 입력 내용 초기화 버튼 (JS에서 생성)
+const clearInputBtn = document.createElement('button');
+clearInputBtn.id = 'clearInputBtn';
+clearInputBtn.textContent = '입력 내용 비우기';
+clearInputBtn.style.backgroundColor = '#999';
+clearInputBtn.style.color = 'white';
+clearInputBtn.style.padding = '12px 18px';
+clearInputBtn.style.borderRadius = '8px';
+clearInputBtn.style.fontWeight = 'bold';
+clearInputBtn.style.cursor = 'pointer';
+clearInputBtn.style.border = 'none';
+clearInputBtn.style.marginLeft = '10px';
+
+
+// 기존 DOM 구조 참조
+const goalCardBody = document.querySelector('.goal-card');
+const goalActionsDiv = document.querySelector('.goal-actions');
+// 페이지네이션
+const pageIndicator = document.getElementById('pageIndicator');
+const mainViewContainer = document.getElementById('mainViewContainer');
+const prevPageBtn = document.getElementById('prevPageBtn');
+const nextPageBtn = document.getElementById('nextPageBtn');
+// 전체 초기화 버튼 컨테이너 (제어 대상)
+const globalActionsDiv = document.getElementById('globalActions');
+
+
+const budgetModal = document.getElementById('budgetModal');
+const modalCloseBtn = document.getElementById('modalCloseBtn');
+// ⭐⭐ 모달 내부의 입력 요소들: 이 변수들이 openBudgetModal에서 새로운 DOM을 정확히 참조하도록 재할당됩니다. ⭐⭐
+let viewDateInput = document.getElementById('viewDate');
+let viewTypeInput = document.getElementById('viewType');
+let viewAmountInput = document.getElementById('viewAmount');
+let viewCategoryInput = document.getElementById('viewCategory');
+let viewMemoInput = document.getElementById('viewMemo');
+const modalSaveBtn = document.getElementById('modalSaveBtn');
+const modalDeleteBtn = document.getElementById('modalDeleteBtn');
+
+
+let currentEditingId = null;
+// 카테고리 목록
+const categories = {
+    expense: [
+        { value: '식비', label: '식비 🍔' },
+        { value: '교통', label: '교통 🚌' },
+        { value: '쇼핑', label: '쇼핑 🛍️' },
+        { value: '생활', label: '생활 🏠' },
+        { value: '경조사', label: '경조사 🎁' },
+        { value: '기타_지출', label: '기타 지출' }
+    ],
+    income: [
+        { value: '월급', label: '월급 💵' },
+        { value: '용돈', label: '용돈 💰' },
+        { value: '부수입', label: '부수입 ✨' },
+        { value: '기타_수입', label: '기타 수입' }
+    ]
+};
+// --- 유틸리티 및 초기화 함수 ---
+function getTodayDateString() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function formatAmount(amount) {
+    return new Intl.NumberFormat('ko-KR').format(amount) + '원';
+}
+
+function showToast(message) {
+    console.log(`[Budget App] ${message}`);
+}
+
+function updateCategoryOptions(type, targetSelectElement) {
+    targetSelectElement.innerHTML = '';
+    const categoryList = categories[type] || categories.expense;
+    categoryList.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat.value;
+        option.textContent = cat.label;
+        targetSelectElement.appendChild(option);
+    });
+}
+
+function clearInputFields() {
+    budgetDateInput.value = getTodayDateString();
+    budgetTypeInput.value = 'expense';
+    budgetAmountInput.value = '';
+    budgetMemoInput.value = '';
+    updateCategoryOptions('expense', budgetCategoryInput);
+}
+
+// --- 페이지네이션 로직 ---
+function showPage(pageNumber) {
+    currentPage = Math.min(Math.max(pageNumber, 1), totalPages);
+
+    document.querySelectorAll('.page-content').forEach(el => el.style.display = 'none');
+    let targetView;
+    switch (currentPage) {
+        case 1: targetView = document.getElementById('recordView'); break;
+        case 2: targetView = document.getElementById('monthlyLedgerView');
+                renderMonthlyLedgersView();
+                break;
+        case 3: targetView = document.getElementById('goalAndStatsView');
+                calculateFiveYearStats();
+                loadGoal();
+                break;
+    }
+
+    if (targetView) {
+        targetView.style.display = 'block';
+    }
+
+    pageIndicator.textContent = `페이지 ${currentPage} / ${totalPages}`;
+
+    prevPageBtn.disabled = (currentPage === 1);
+    nextPageBtn.disabled = (currentPage === totalPages);
+    // ✨ 핵심 수정: 3페이지일 때만 전체 초기화 버튼 보이기
+    if (currentPage === 3) {
+        globalActionsDiv.style.display = 'block';
+    } else {
+        globalActionsDiv.style.display = 'none';
+    }
+}
+
+
+// -------------------------------------------------------------------------
+// 1. 거래 기록 CRUD
+// -------------------------------------------------------------------------
+
+async function saveBudget() {
+    const date = budgetDateInput.value;
+    const type = budgetTypeInput.value;
+    const amount = parseInt(budgetAmountInput.value, 10);
+    const category = budgetCategoryInput.value;
+    const memo = budgetMemoInput.value.trim();
+    const timestamp = new Date().getTime();
+
+    if (!date || !type || !amount || !category || amount <= 0) {
+        alert('필수 항목을 올바르게 입력해주세요. 금액은 1원 이상이어야 합니다.');
+        return;
+    }
+
+    try {
+        await db.budgets.add({
+            timestamp: timestamp,
+            date: date,
+            type: type,
+            amount: amount,
+            category: category,
+            memo: memo
+        });
+        showToast(`[${date}] ${type === 'income' ? '수입' : '지출'} ${formatAmount(amount)} 저장 완료.`);
+        clearInputFields();
+        refreshAllData();
+    } catch (error) {
+        showToast('거래 기록 저장 오류: ' + error);
+        console.error("Save Budget Error:", error);
+    }
+}
+
+
+async function saveModalBudget() {
+    if (!currentEditingId) return;
+    const id = currentEditingId;
+
+    // viewDateInput 등은 openBudgetModal에서 새로운 DOM을 가리키도록 재할당됨
+    const date = viewDateInput.value;
+    const type = viewTypeInput.value;
+    const amount = parseInt(viewAmountInput.value, 10);
+    const category = viewCategoryInput.value;
+    const memo = viewMemoInput.value.trim();
+
+    if (!date || !type || !amount || !category || amount <= 0) {
+        alert('모든 필수 항목을 올바르게 입력해주세요.');
+        return;
+    }
+
+    try {
+        const existingEntry = await db.budgets.get(id);
+        await db.budgets.put({
+            id: id,
+            timestamp: existingEntry.timestamp,
+            date: date,
+            type: type,
+            amount: amount,
+            category: category,
+            memo: memo
+        });
+        showToast(`거래 기록 (ID: ${id}) 수정 완료.`);
+        budgetModal.style.display = 'none';
+        refreshAllData();
+    } catch (error) {
+        showToast('거래 기록 수정 오류: ' + error);
+        console.error("Modal Save Error:", error);
+    }
+}
+
+async function deleteBudgetEntry(id) {
+    if (confirm('해당 거래 기록을 정말 삭제하시겠습니까?')) {
+        try {
+            await db.budgets.delete(id);
+            showToast(`거래 기록 (ID: ${id}) 삭제 완료`);
+            budgetModal.style.display = 'none';
+            refreshAllData();
+        } catch (error) {
+            showToast('거래 기록 삭제 오류: ' + error);
+            console.error("Delete Budget Error:", error);
+        }
+    }
+}
+
+async function openBudgetModal(id) {
+    currentEditingId = id;
+    try {
+        const entry = await db.budgets.get(id);
+        if (!entry) {
+            alert('기록을 찾을 수 없습니다.');
+            return;
+        }
+
+        const modalContent = document.getElementById('budgetModal').querySelector('.modal-content');
+        // ⭐ 핵심 수정 1: 모달 HTML을 새로 구성하고, ID 충돌을 피하기 위해 '_new'를 사용
+        modalContent.innerHTML = `
+            <span class="close-btn" id="modalCloseBtn_new">&times;</span>
+            <h3>거래 수정/보기</h3>
+            <div class="modal-input-group">
+                <label>날짜</label>
+                <input type="date" id="viewDate_new" required>
+            </div>
+            <div class="modal-input-group">
+                <label>유형</label>
+                <select id="viewType_new" required>
+                    <option value="expense">지출</option>
+                    <option value="income">수입</option>
+                </select>
+            </div>
+            <div class="modal-input-group">
+                <label>금액 (원)</label>
+                <input type="number" id="viewAmount_new" placeholder="금액" required min="1">
+            </div>
+            <div class="modal-input-group">
+                <label>카테고리</label>
+                <select id="viewCategory_new" required></select>
+            </div>
+            <div class="modal-input-group">
+                <label>메모</label>
+                <textarea id="viewMemo_new" placeholder="메모"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button id="modalSaveBtn_new">수정 완료</button>
+                <button id="modalDeleteBtn_new">삭제</button>
+            </div>
+        `;
+
+        // ⭐ 핵심 수정 2: 전역 'let' 변수들에 새로 생성된 DOM 요소를 재할당
+        viewDateInput = modalContent.querySelector('#viewDate_new');
+        viewTypeInput = modalContent.querySelector('#viewType_new');
+        viewAmountInput = modalContent.querySelector('#viewAmount_new');
+        viewCategoryInput = modalContent.querySelector('#viewCategory_new');
+        viewMemoInput = modalContent.querySelector('#viewMemo_new');
+
+        // 값을 채워넣습니다.
+        viewDateInput.value = entry.date;
+        viewTypeInput.value = entry.type;
+        viewAmountInput.value = entry.amount;
+        viewMemoInput.value = entry.memo || '';
+
+        // 카테고리 옵션을 업데이트하고 선택합니다.
+        updateCategoryOptions(entry.type, viewCategoryInput);
+        viewCategoryInput.value = entry.category;
+
+        // 이벤트 리스너를 새로 연결합니다.
+        modalContent.querySelector('#modalSaveBtn_new').onclick = saveModalBudget;
+        modalContent.querySelector('#modalDeleteBtn_new').onclick = () => deleteBudgetEntry(entry.id);
+        modalContent.querySelector('#modalCloseBtn_new').onclick = () => budgetModal.style.display = 'none';
+
+        // 유형 변경 시 카테고리 옵션 업데이트 기능 연결
+        viewTypeInput.onchange = (e) => updateCategoryOptions(e.target.value, viewCategoryInput);
+
+        budgetModal.style.display = 'block';
+
+    } catch (error) {
+        alert('거래 정보를 불러오는 중 오류가 발생했습니다: ' + error.message);
+        console.error("Open Modal Error:", error);
+    }
+}
+
+// -------------------------------------------------------------------------
+// 2. 통계 및 장부 렌더링
+// -------------------------------------------------------------------------
+
+async function calculateTotalBalance() {
+    const allBudgets = await db.budgets.toArray();
+    let income = 0;
+    let expense = 0;
+
+    allBudgets.forEach(entry => {
+        if (entry.type === 'income') {
+            income += entry.amount;
+        } else {
+            expense += entry.amount;
+        }
+    });
+
+    const balance = income - expense;
+    currentBalanceEl.textContent = formatAmount(balance);
+}
+
+// (현재 월) 통계 업데이트 및 차트 렌더링
+async function updateMonthlyStats() {
+    const today = getTodayDateString();
+    const currentMonth = today.substring(0, 7); // YYYY-MM
+    const allBudgets = await db.budgets.toArray();
+
+    const monthlyData = allBudgets.filter(entry => entry.date.startsWith(currentMonth));
+
+    let income = 0;
+    let expense = 0;
+    const dailyExpenses = {}; // { 'YYYY-MM-DD': amount }
+
+    monthlyData.forEach(entry => {
+        if (entry.type === 'income') {
+            income += entry.amount;
+        } else {
+            expense += entry.amount;
+            dailyExpenses[entry.date] = (dailyExpenses[entry.date] || 0) + entry.amount;
+        }
+    });
+
+    const balance = income - expense;
+
+    monthlyIncomeEl.textContent = `수입: ${formatAmount(income)}`;
+    monthlyExpenseEl.textContent = `지출: ${formatAmount(expense)}`;
+    monthlyBalanceEl.textContent = `잔액: ${formatAmount(balance)}`;
+
+    renderDailyExpenseChart(dailyExpenses);
+}
+
+function renderDailyExpenseChart(dailyExpenses) {
+    if (dailyExpenseChartInstance) {
+        dailyExpenseChartInstance.destroy();
+    }
+
+    const dates = Object.keys(dailyExpenses).sort();
+    const amounts = dates.map(date => dailyExpenses[date]);
+
+    const ctx = document.getElementById('dailyExpenseChart').getContext('2d');
+    dailyExpenseChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: dates.map(d => d.substring(5)), // 월/일만 표시
+            datasets: [{
+                label: '일별 지출 (원)',
+                data: amounts,
+                backgroundColor: 'rgba(234, 67, 53, 0.7)', // expense-color
+                borderColor: 'rgba(234, 67, 53, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+
+// 월별 장부 목록 (페이지 2) 렌더링
+async function renderMonthlyLedgersView() {
+    const allBudgets = await db.budgets.toArray();
+    const monthlyLedgers = {}; // { 'YYYY-MM': [entries], ... }
+
+    allBudgets.forEach(entry => {
+        const month = entry.date.substring(0, 7);
+        if (!monthlyLedgers[month]) {
+            monthlyLedgers[month] = [];
+        }
+        monthlyLedgers[month].push(entry);
+    });
+
+    const sortedMonths = Object.keys(monthlyLedgers).sort().reverse();
+    let html = '';
+
+    if (sortedMonths.length === 0) {
+        html = '<p style="text-align: center; color: #999; padding: 20px;">기록된 월별 장부가 없습니다.</p>';
+    } else {
+        sortedMonths.forEach(month => {
+            const entries = monthlyLedgers[month];
+            let incomeTotal = 0;
+            let expenseTotal = 0;
+
+            entries.forEach(entry => {
+                if (entry.type === 'income') incomeTotal += entry.amount;
+                else expenseTotal += entry.amount;
+            });
+
+            html += `
+                <div class="monthly-ledger-container">
+                    <div class="month-title">${month} 장부</div>
+                    <div class="month-summary">
+                        <span class="income-text">수입: ${formatAmount(incomeTotal)}</span>
+                        <span class="expense-text">지출: ${formatAmount(expenseTotal)}</span>
+                        <span class="balance-text">잔액: ${formatAmount(incomeTotal - expenseTotal)}</span>
+                    </div>
+                    ${generateLedgerTable(entries.sort((a, b) => new Date(b.date) - new Date(a.date)))}
+                </div>
+            `;
+        });
+    }
+
+    monthlyLedgersContentEl.innerHTML = html;
+    attachLedgerButtonListeners(); // 테이블 생성 후 버튼 이벤트 연결
+}
+
+function generateLedgerTable(entries) {
+    let tableHtml = `
+        <table class="ledger-table">
+            <thead>
+                <tr>
+                    <th>날짜</th>
+                    <th>분류</th>
+                    <th>금액</th>
+                    <th>메모</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    entries.forEach(entry => {
+        const amountClass = entry.type; // 'income' or 'expense'
+        const categoryLabel = categories[entry.type]?.find(cat => cat.value === entry.category)?.label || entry.category;
+
+        tableHtml += `
+            <tr>
+                <td>${entry.date.substring(5)}</td>
+                <td>${categoryLabel}</td>
+                <td class="${amountClass}">${formatAmount(entry.amount)}</td>
+                <td class="memo-cell">${entry.memo || '-'}</td>
+                <td class="action-cell">
+                    <button data-id="${entry.id}" class="view-edit-btn">보기/수정</button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tableHtml += '</tbody></table>';
+    return tableHtml;
+}
+
+function attachLedgerButtonListeners() {
+    document.querySelectorAll('.view-edit-btn').forEach(button => {
+        button.onclick = () => openBudgetModal(parseInt(button.getAttribute('data-id'), 10));
+    });
+}
+
+
+// 5개년 누적 통계 (페이지 3)
+async function calculateFiveYearStats() {
+    const currentYear = new Date().getFullYear();
+    const allBudgets = await db.budgets.toArray();
+    const annualStats = {}; // { 'YYYY': { income: 0, expense: 0 } }
+
+    for (let i = 0; i < 5; i++) {
+        annualStats[currentYear - i] = { income: 0, expense: 0 };
+    }
+
+    allBudgets.forEach(entry => {
+        const year = parseInt(entry.date.substring(0, 4), 10);
+        if (annualStats[year]) {
+            if (entry.type === 'income') {
+                annualStats[year].income += entry.amount;
+            } else {
+                annualStats[year].expense += entry.amount;
+            }
+        }
+    });
+
+    let html = '';
+    const sortedYears = Object.keys(annualStats).sort((a, b) => b - a);
+
+    if (sortedYears.length === 0) {
+        html = '<div class="empty-message" style="text-align: center; color: #999; padding: 15px;">데이터가 부족합니다.</div>';
+    } else {
+        sortedYears.forEach(year => {
+            const stats = annualStats[year];
+            const balance = stats.income - stats.expense;
+
+            html += `
+                <div class="year-slot">
+                    <strong>${year}년 통계</strong>
+                    <p class="income-text">총 수입: ${formatAmount(stats.income)}</p>
+                    <p class="expense-text">총 지출: ${formatAmount(stats.expense)}</p>
+                    <p class="balance-text" style="color: ${balance >= 0 ? 'var(--income-color)' : 'var(--expense-color)'};">순 자산 변화: ${formatAmount(balance)}</p>
+                </div>
+            `;
+        });
+    }
+
+    fiveYearStatsContentEl.innerHTML = html;
+}
+
+// -------------------------------------------------------------------------
+// 3. 목표 설정 로직
+// -------------------------------------------------------------------------
+
+async function loadGoal() {
+    try {
+        const goalEntry = await db.goals.get(1); // goals 테이블에는 ID 1 하나만 사용
+        const goalText = goalEntry ? goalEntry.memo : '';
+
+        // 목표 상태에 따라 보기/수정 모드 전환
+        if (goalText.trim() === '') {
+            // 입력 모드 (기존 폼 보이기)
+            goalMemoInputEl.value = '';
+            goalMemoInputEl.style.display = 'block';
+            if (goalDisplayArea.parentNode) {
+                goalDisplayArea.parentNode.removeChild(goalDisplayArea);
+            }
+            // 버튼 액션
+            goalActionsDiv.innerHTML = '';
+            goalActionsDiv.appendChild(saveGoalBtn);
+            goalActionsDiv.appendChild(clearGoalBtn);
+
+        } else {
+            // 보기 모드 (읽기 전용 텍스트 보이기)
+            goalMemoInputEl.style.display = 'none';
+            goalDisplayArea.textContent = goalText;
+
+            if (!goalDisplayArea.parentNode) {
+                goalCardBody.insertBefore(goalDisplayArea, goalActionsDiv);
+            }
+
+            // 버튼 액션: 수정 버튼만 남기기
+            goalActionsDiv.innerHTML = '';
+            goalActionsDiv.appendChild(editGoalBtn);
+        }
+    } catch (error) {
+        console.error("Load Goal Error:", error);
+    }
+}
+
+async function saveGoal() {
+    const memo = goalMemoInputEl.value.trim();
+    if (memo === '') {
+        alert('목표 내용을 입력해주세요.');
+        return;
+    }
+
+    try {
+        await db.goals.put({
+            id: 1,
+            memo: memo
+        });
+        showToast('목표가 저장되었습니다.');
+        loadGoal(); // 저장 후 보기 모드로 전환
+    } catch (error) {
+        showToast('목표 저장 오류: ' + error);
+        console.error("Save Goal Error:", error);
+    }
+}
+
+async function clearGoal() {
+    if (confirm('현재 목표를 정말로 삭제하시겠습니까?')) {
+        try {
+            await db.goals.delete(1);
+            showToast('목표가 삭제되었습니다.');
+            loadGoal(); // 삭제 후 입력 모드로 전환
+        } catch (error) {
+            showToast('목표 삭제 오류: ' + error);
+            console.error("Clear Goal Error:", error);
+        }
+    }
+}
+
+function editGoal() {
+    // 보기 모드에서 입력 모드로 전환
+    goalMemoInputEl.value = goalDisplayArea.textContent;
+    goalMemoInputEl.style.display = 'block';
+    if (goalDisplayArea.parentNode) {
+        goalDisplayArea.parentNode.removeChild(goalDisplayArea);
+    }
+    // 버튼 액션: 저장/삭제 버튼 보이기
+    goalActionsDiv.innerHTML = '';
+    goalActionsDiv.appendChild(saveGoalBtn);
+    goalActionsDiv.appendChild(clearGoalBtn);
+}
+
+
+// -------------------------------------------------------------------------
+// 4. 전역 관리 및 초기화
+// -------------------------------------------------------------------------
+
+async function globalReset() {
+    if (confirm('⚠️ 경고: 모든 거래 기록(최근 5년 데이터)을 영구적으로 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+        if (confirm('정말로 모든 기록을 삭제하시겠습니까? 신중하게 결정해주세요.')) {
+            try {
+                await db.budgets.clear();
+                await db.goals.clear();
+                showToast('✅ 모든 기록이 성공적으로 초기화되었습니다.');
+                refreshAllData();
+                showPage(1); // 초기화 후 1페이지로 돌아가기
+            } catch (error) {
+                showToast('데이터 초기화 중 오류 발생: ' + error);
+                console.error("Global Reset Error:", error);
+            }
+        }
+    }
+}
+
+
+function refreshAllData() {
+    calculateTotalBalance();
+    updateMonthlyStats();
+    // 현재 페이지가 2 또는 3이면 해당 페이지도 업데이트
+    if (currentPage === 2) renderMonthlyLedgersView();
+    if (currentPage === 3) calculateFiveYearStats();
+}
+
+// -------------------------------------------------------------------------
+// 5. 이벤트 리스너 및 초기화
+// -------------------------------------------------------------------------
+
+function initializeEventListeners() {
+    // 1. 입력 폼 이벤트
+    budgetTypeInput.onchange = (e) => updateCategoryOptions(e.target.value, budgetCategoryInput);
+    saveBudgetBtn.onclick = saveBudget;
+    clearInputBtn.onclick = clearInputFields;
+    // 입력 폼에 초기화 버튼 추가
+    const inputCard = document.querySelector('.input-card');
+    const saveBudgetBtnParent = saveBudgetBtn.parentNode;
+    if (saveBudgetBtnParent) {
+        saveBudgetBtnParent.appendChild(clearInputBtn);
+    }
+
+
+    // 2. 페이지네이션 이벤트
+    prevPageBtn.onclick = () => showPage(currentPage - 1);
+    nextPageBtn.onclick = () => showPage(currentPage + 1);
+
+    // 3. 목표 설정 이벤트
+    saveGoalBtn.onclick = saveGoal;
+    clearGoalBtn.onclick = clearGoal;
+    editGoalBtn.onclick = editGoal; // JS에서 생성된 버튼이므로 여기서 연결
+
+    // 4. 모달 이벤트 (모달 외부 클릭 시 닫기)
+    window.onclick = function(event) {
+        if (event.target == budgetModal) {
+            budgetModal.style.display = "none";
+        }
+    }
+
+    // 5. 전체 초기화 이벤트 (3페이지용)
+    document.getElementById('globalResetBtn').onclick = globalReset;
+
+}
+
+function init() {
+    // 1. 초기 날짜 설정
+    clearInputFields();
+
+    // 2. 이벤트 리스너 설정
+    initializeEventListeners();
+
+    // 3. 페이지 뷰 로드 및 데이터 새로고침
+    refreshAllData();
+    showPage(1);
+}
+
+// 앱 시작
+init();
+</script>
+</body>
+</html>

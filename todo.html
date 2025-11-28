@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today_todo App</title> <script src="https://unpkg.com/dexie@3.2.3/dist/dexie.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <style>
+        /* 🎨 디자인 반영 CSS */
+        :root {
+            --primary-color: #ff8c94; 
+            --primary-dark: #e91e63; 
+            --accent-color: #9c27b0; 
+            --green-success: #4caf50; 
+            --danger-color: #f44336;
+            --background-color: #fce4ec; 
+            --card-background: #ffffff;
+            --text-color: #333333;
+            --shadow-light: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 400px; 
+            background: var(--background-color);
+        }
+
+        .card {
+            background-color: var(--card-background); 
+            padding: 20px; 
+            border-radius: 20px; 
+            box-shadow: var(--shadow-light); 
+            margin-bottom: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+
+        h2 {
+            text-align: center;
+            color: var(--primary-dark);
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .input-group input {
+            flex-grow: 1;
+            padding: 12px;
+            border: 2px solid var(--primary-color);
+            border-radius: 12px;
+            font-size: 1em;
+            outline: none;
+        }
+        .input-group button {
+            background-color: var(--green-success);
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s;
+        }
+
+        .task { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 12px 0; 
+            border-bottom: 1px solid #f0f0f0; 
+            cursor: pointer;
+        }
+        .task:last-child { border-bottom: none; }
+        .task-content { 
+            flex-grow: 1; 
+            display: flex; 
+            align-items: center; 
+            font-size: 1.1em;
+        }
+        
+        .checkbox { 
+            margin-right: 15px; 
+            font-size: 1.2em; 
+            color: #ccc; 
+            min-width: 20px;
+            text-align: center;
+        } 
+        .task.done .checkbox { 
+            color: var(--green-success); 
+        } 
+        .task.done .task-content { 
+            text-decoration: line-through; 
+            color: #999; 
+        }
+        .delete-btn { 
+            background: none; 
+            border: none; 
+            color: var(--danger-color); 
+            cursor: pointer; 
+            font-size: 1.2em;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .task-points { 
+            font-size: 0.8em; 
+            margin-left: 10px; 
+            color: var(--accent-color); 
+            font-weight: bold;
+        }
+
+        .score-info {
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--text-color);
+            padding: 10px 0;
+            margin-bottom: 10px;
+        }
+        .reset-btn {
+            background-color: var(--primary-dark);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .reset-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Today_todo 🍎</h2> <div class="card" style="background-color: #f8bbd0; color: white;">
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 5px;" id="currentDate">
+                </div>
+            <div style="font-size: 0.9em; opacity: 0.8;">
+                </div>
+        </div>
+
+        <div class="card input-card">
+            <div class="input-group">
+                <input type="text" id="newTask" placeholder="Enter a new task...">
+                <button id="addTaskBtn">Add</button>
+            </div>
+
+            <div class="score-info" id="todayScore">
+                Today's Score: 0 / 0 points
+            </div>
+            <div class="score-info" id="todayGrade" style="font-size: 1em; color: var(--accent-color);">
+                Grade: F
+            </div>
+        </div>
+
+        <div id="taskList" class="card list-card" style="padding: 10px 20px;">
+            <div class="empty-message">할 일을 추가해 보세요!</div>
+        </div>
+
+        <button id="resetManualBtn" class="reset-btn">
+            <i class="fas fa-undo"></i> 할일초기화
+        </button>
+    </div>
+
+<script>
+// =========================================================================
+// 🧩 JavaScript 로직 (TODO 전용)
+// =========================================================================
+
+const db = new Dexie('TodoAppDB');
+db.version(1).stores({
+    tasks_db: 'id, date, todo, done, points', 
+});
+
+// --- 유틸리티 함수 ---
+
+function getTodayKey() {
+    return new Date().toISOString().split('T')[0]; 
+}
+
+function calculateGrade(achieved, total) {
+    if (total === 0) return 'F 😭';
+    const ratio = achieved / total;
+    
+    if (ratio >= 1.0) return 'A+ ✅'; // 100%
+    if (ratio >= 0.8) return 'A 🌟';  // 80%
+    if (ratio >= 0.6) return 'B 👏';  // 60%
+    if (ratio >= 0.4) return 'C 🙂';  // 40%
+    if (ratio >= 0.2) return 'D 😞';  // 20%
+    return 'F 😭';                    // Below 20%
+}
+
+function showToast(message, type = 'info') {
+    console.log(`[Toast - ${type}] ${message}`);
+}
+
+function updateDateTime() {
+    const now = new Date();
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+    
+    document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', dateOptions);
+    document.getElementById('currentDate').nextElementSibling.textContent = now.toLocaleTimeString('en-US', timeOptions); 
+}
+
+
+// --- TODO 핵심 로직 ---
+
+async function addTask() {
+    const newTaskInput = document.getElementById('newTask');
+    const todoText = newTaskInput.value.trim();
+
+    if (todoText === '') {
+        alert('할 일을 입력해 주세요.');
+        return;
+    }
+
+    const todayKey = getTodayKey();
+    
+    try {
+        await db.tasks_db.add({
+            date: todayKey,
+            todo: todoText,
+            done: false,
+            points: 20, 
+            id: Date.now() 
+        });
+        newTaskInput.value = '';
+        renderTodoList();
+        showToast('할 일 추가 완료!', 'success');
+    } catch (error) {
+        showToast('할 일 추가 오류: ' + error, 'error');
+        console.error("Add Task Error:", error);
+    }
+}
+
+async function renderTodoList() {
+    const todayKey = getTodayKey();
+    const tasks = await db.tasks_db.where({ date: todayKey }).toArray();
+    
+    const totalPoints = tasks.reduce((sum, task) => sum + task.points, 0);
+    const achievedPoints = tasks.filter(t => t.done).reduce((sum, task) => sum + task.points, 0);
+    
+    document.getElementById('todayScore').textContent = `Today's Score: ${achievedPoints} / ${totalPoints} points`;
+    document.getElementById('todayGrade').textContent = `Grade: ${calculateGrade(achievedPoints, totalPoints)}`;
+
+    const taskListElement = document.getElementById('taskList');
+    taskListElement.innerHTML = '';
+    
+    if (tasks.length === 0) {
+        taskListElement.innerHTML = '<div class="empty-message">오늘의 목표를 달성하고 점수를 획득하세요.</div>';
+        return;
+    }
+
+    tasks.forEach(task => {
+        const taskElement = document.createElement('div');
+        taskElement.className = `task ${task.done ? 'done' : ''}`;
+        
+        const checkboxIcon = task.done ? '✔️' : '◻️';
+        
+        taskElement.innerHTML = `
+            <div class="task-content" onclick="toggleTaskDone(${task.id}, ${!task.done})">
+                <span class="checkbox">${checkboxIcon}</span>
+                ${task.todo}
+                <span class="task-points">${task.points}P</span>
+            </div>
+            <button class="delete-btn" onclick="event.stopPropagation(); deleteTask(${task.id})">❌</button>
+        `;
+        taskListElement.appendChild(taskElement);
+    });
+}
+
+async function toggleTaskDone(id, done) {
+    try {
+        await db.tasks_db.update(id, { done: done });
+        renderTodoList();
+        showToast(done ? '할 일 완료! 🎉' : '다시 미완료', 'info');
+    } catch (error) {
+        showToast('업데이트 오류: ' + error, 'error');
+    }
+}
+
+async function deleteTask(id) {
+    if (confirm('정말 삭제하시겠습니까? (이 할 일만 삭제됩니다)')) {
+        try {
+            await db.tasks_db.delete(id);
+            renderTodoList();
+            showToast('할 일 삭제 완료', 'success');
+        } catch (error) {
+            showToast('삭제 오류: ' + error, 'error');
+        }
+    }
+}
+
+// ** 수동 초기화 기능 (버튼명: 할일초기화, 기능: 항목 전체 삭제) **
+async function resetTasksPermanently() {
+    // 경고 메시지를 명확히 하여, '초기화' 버튼이지만 실제로는 항목 '삭제'임을 알립니다.
+    if (confirm('⚠️ 경고: [할일초기화] 버튼은 오늘 할 일 목록을 데이터에서 완전히 삭제합니다. 진행하시겠습니까?')) {
+        const todayKey = getTodayKey();
+        try {
+            // Dexie의 delete()를 사용하여 오늘 날짜의 모든 할 일 항목을 삭제
+            const deleteCount = await db.tasks_db
+                .where({ date: todayKey })
+                .delete();
+            
+            if (deleteCount > 0) {
+                 renderTodoList();
+                 showToast('모든 할 일 항목이 삭제되었습니다.', 'success');
+            } else {
+                 showToast('삭제할 할 일이 없습니다.', 'info');
+            }
+        } catch (error) {
+            showToast('⚠️ 삭제 오류가 발생했습니다. 콘솔을 확인해주세요.', 'error');
+            console.error("Critical Task Deletion Error:", error); 
+        }
+    }
+}
+
+
+// --- 초기화 ---
+
+function initializeApp() {
+    updateDateTime();
+    renderTodoList(); 
+    
+    document.getElementById('addTaskBtn').addEventListener('click', addTask);
+    // 버튼 이벤트 리스너를 항목 삭제 함수로 연결
+    document.getElementById('resetManualBtn').addEventListener('click', resetTasksPermanently); 
+    
+    setInterval(updateDateTime, 1000); 
+}
+
+window.onload = initializeApp;
+
+</script>
+
+</body>
+</html>

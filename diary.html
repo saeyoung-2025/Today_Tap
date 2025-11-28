@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today_diary</title>
+    <script src="https://unpkg.com/dexie@3.2.3/dist/dexie.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-light: #f7f9fc; 
+            --main-accent: #4a90e2;
+            --text-color: #333333;
+            --card-background: #ffffff;
+            --shadow-light: 0 4px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light); 
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 600px; 
+            padding: 20px;
+        }
+
+        h2 {
+            text-align: center;
+            color: var(--main-accent); 
+            margin: 10px 0 20px;
+            font-size: 1.8em; 
+            font-weight: 600;
+        }
+
+        .write-card {
+            background-color: var(--card-background); 
+            padding: 20px; 
+            border-radius: 15px;
+            box-shadow: 0 0 0 2px var(--main-accent), var(--shadow-light); 
+            margin-bottom: 30px;
+        }
+
+        .write-card h3 {
+            border-bottom: 1px solid var(--main-accent); 
+            padding-bottom: 10px;
+            margin-top: 0;
+            font-size: 1.2em;
+            color: var(--text-color);
+            font-weight: bold; 
+        }
+
+        #diaryTitleInput, #diaryTextInput {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1em;
+            margin-bottom: 15px;
+            outline: none;
+            color: var(--text-color);
+        }
+        
+        #diaryTextInput {
+            min-height: 150px;
+            resize: vertical;
+            font-size: 1.1em; 
+            font-weight: bold; 
+        }
+        
+        #diaryTitleInput {
+            font-weight: bold;
+        }
+
+        .mood-and-button {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+        }
+        .mood-group {
+            display: flex;
+            align-items: center;
+            font-size: 1em;
+        }
+        #moodSelect {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--main-accent); 
+            background-color: white;
+            font-size: 1em;
+            margin-left: 10px;
+        }
+
+        #saveBtn {
+            background-color: var(--main-accent); 
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1em;
+            transition: background-color 0.2s;
+        }
+        #saveBtn:hover {
+            background-color: #3a75c4; 
+        }
+
+        .history-section h3 {
+            border-bottom: 1px solid var(--main-accent); 
+            padding-bottom: 10px;
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: var(--text-color);
+            font-weight: bold; 
+        }
+        
+        .diary-entry {
+            background-color: var(--card-background);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: var(--shadow-light);
+            border-left: 5px solid var(--main-accent); 
+        }
+        .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .entry-header strong {
+            font-size: 1.1em;
+            color: var(--text-color); 
+            font-weight: bold;
+        }
+        
+        .entry-content-short {
+            margin: 5px 0 10px;
+            white-space: pre-wrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 3; 
+            -webkit-box-orient: vertical;
+            font-size: 1.1em; 
+            font-weight: bold;
+            color: var(--text-color);
+        }
+        
+        .entry-actions button {
+            background: #e0e0e0;
+            color: var(--text-color);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85em;
+            margin-right: 5px;
+        }
+        .entry-actions button:hover {
+            background: #ccc;
+        }
+        
+        /* 더보기 버튼 */
+        .show-more-btn {
+            background-color: var(--main-accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1em;
+            width: 100%;
+            margin: 20px 0;
+            transition: background-color 0.2s;
+        }
+        .show-more-btn:hover {
+            background-color: #3a75c4;
+        }
+        
+        /* 페이지네이션 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .pagination button {
+            background-color: white;
+            color: var(--main-accent);
+            border: 2px solid var(--main-accent);
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            min-width: 40px;
+            transition: all 0.2s;
+        }
+        
+        .pagination button:hover {
+            background-color: var(--main-accent);
+            color: white;
+        }
+        
+        .pagination button.active {
+            background-color: var(--main-accent);
+            color: white;
+        }
+        
+        .pagination button:disabled {
+            background-color: #f0f0f0;
+            color: #ccc;
+            border-color: #ddd;
+            cursor: not-allowed;
+        }
+        
+        .modal { 
+            display: none; 
+            position: fixed; 
+            z-index: 10; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.5); 
+        }
+        .modal-content { 
+            background-color: #fefefe; 
+            margin: 10% auto; 
+            padding: 30px; 
+            border-radius: 15px; 
+            width: 90%; 
+            max-width: 500px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); 
+        }
+        .close-btn { 
+            color: #aaa; 
+            float: right; 
+            font-size: 28px; 
+            font-weight: bold; 
+        }
+        .close-btn:hover, .close-btn:focus { 
+            color: #000; 
+            text-decoration: none; 
+            cursor: pointer; 
+        }
+        #viewTitle, #viewContent { 
+            width: 100%; 
+            padding: 10px; 
+            margin-bottom: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+            box-sizing: border-box; 
+            font-size: 1em; 
+            color: var(--text-color); 
+        }
+        #viewTitle { font-weight: bold; }
+        #viewContent { min-height: 200px; resize: vertical; font-size: 1.1em; font-weight: bold; }
+        .modal-actions { 
+            display: flex; 
+            justify-content: flex-end; 
+            gap: 10px; 
+        }
+        .modal-actions button { 
+            padding: 10px 15px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+        }
+        #modalSaveBtn { background-color: var(--main-accent); color: white; }
+        #modalDeleteBtn { background-color: #cc4444; color: white; }
+
+        .search-section { 
+            padding: 15px 0; 
+            border-top: 1px solid var(--main-accent); 
+        }
+        .search-group { 
+            display: flex; 
+            gap: 10px; 
+        }
+        .search-group input { 
+            flex-grow: 1; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 5px; 
+            box-sizing: border-box; 
+            font-size: 1em; 
+        }
+        .search-group button { 
+            flex-shrink: 0; 
+            width: 60px; 
+            background-color: var(--main-accent); 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
+        #clearSearchBtn { 
+            width: 80px; 
+            background-color: #888; 
+        }
+        #clearSearchBtn:hover { 
+            background-color: #666; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>📝 Today_diary</h2> 
+        
+        <div class="write-card">
+            <h3>일기 작성</h3>
+            
+            <input type="text" id="diaryTitleInput" placeholder="제목을 입력하세요">
+            <textarea id="diaryTextInput" placeholder="오늘 하루를 기록해 보세요... (500자 까지만 가능)" maxlength="500"></textarea> 
+            
+            <div class="mood-and-button">
+                <div class="mood-group">
+                    <span>오늘의 기분:</span>
+                    <select id="moodSelect">
+                        <option value="😊">좋음 😊</option>
+                        <option value="☀️">맑음 ☀️</option>
+                        <option value="🌧️">흐림/비 🌧️</option>
+                        <option value="😔">슬픔 😔</option>
+                        <option value="😡">화남 😡</option>
+                        <option value="😴">피곤 😴</option>
+                    </select>
+                </div>
+                <button id="saveBtn">새 일기 저장</button>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <h3>최근 일기 목록</h3>
+            
+            <div class="search-section">
+                <div class="search-group">
+                    <input type="text" id="searchKeyword" placeholder="제목/내용/날짜 검색">
+                    <button onclick="renderDiaryHistory()">검색</button>
+                    <button id="clearSearchBtn">목록으로</button>
+                </div>
+            </div>
+
+            <div id="historyList">
+                <div class="empty-message" style="text-align: center; color: #999; padding: 15px;">작성된 일기가 없습니다.</div>
+            </div>
+            
+            <button id="showMoreBtn" class="show-more-btn" style="display: none;">더보기 (10개까지 보기)</button>
+            
+            <div class="pagination" id="paginationContainer" style="display: none;"></div>
+        </div>
+
+        <div id="diaryModal" class="modal">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h3>일기 수정/보기</h3>
+                <p id="modalDate"></p>
+                <input type="text" id="viewTitle" placeholder="제목을 수정하세요">
+                <textarea id="viewContent" placeholder="내용을 수정하세요"></textarea>
+                <select id="viewMoodSelect">
+                    <option value="😊">좋음 😊</option>
+                    <option value="☀️">맑음 ☀️</option>
+                    <option value="🌧️">흐림/비 🌧️</option>
+                    <option value="😔">슬픔 😔</option>
+                    <option value="😡">화남 😡</option>
+                    <option value="😴">피곤 😴</option>
+                </select>
+                <div class="modal-actions">
+                    <button id="modalSaveBtn">수정 완료</button>
+                    <button id="modalDeleteBtn">삭제</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+const db = new Dexie('DiaryAppDB');
+
+db.version(1).stores({
+    diaries: 'date, title, mood, content',
+});
+db.version(3).stores({
+    diaries: '++id, date, timestamp, title, mood, content', 
+}).upgrade(tx => {
+    console.log("Database schema upgraded to version 3.");
+});
+
+// 페이징 변수
+let currentDisplayMode = 'initial'; // 'initial' (3개), 'expanded' (10개), 'paginated' (페이지)
+let currentPage = 1;
+const itemsPerPage = 10;
+let allEntries = [];
+let filteredEntries = [];
+
+const diaryTitleInput = document.getElementById('diaryTitleInput');
+const diaryTextInput = document.getElementById('diaryTextInput');
+const moodSelect = document.getElementById('moodSelect');
+const saveBtn = document.getElementById('saveBtn');
+const historyList = document.getElementById('historyList');
+const searchKeyword = document.getElementById('searchKeyword');
+const clearSearchBtn = document.getElementById('clearSearchBtn'); 
+const showMoreBtn = document.getElementById('showMoreBtn');
+const paginationContainer = document.getElementById('paginationContainer');
+
+const diaryModal = document.getElementById('diaryModal');
+const closeBtn = document.querySelector('.close-btn');
+const modalDate = document.getElementById('modalDate');
+const viewTitle = document.getElementById('viewTitle');
+const viewContent = document.getElementById('viewContent');
+const viewMoodSelect = document.getElementById('viewMoodSelect');
+const modalSaveBtn = document.getElementById('modalSaveBtn');
+const modalDeleteBtn = document.getElementById('modalDeleteBtn');
+
+let currentEditingId = null; 
+
+function getTodayKey() {
+    return new Date().toISOString().split('T')[0]; 
+}
+
+function showToast(message) {
+    console.log(`[Diary App] ${message}`);
+}
+
+async function saveDiary() {
+    const date = getTodayKey();
+    const timestamp = new Date().getTime(); 
+    const title = diaryTitleInput.value.trim();
+    const content = diaryTextInput.value.trim();
+    const mood = moodSelect.value;
+
+    if (!title || !content) {
+        alert('제목과 내용을 모두 입력해주세요.');
+        return;
+    }
+    
+    try {
+        await db.diaries.add({
+            date: date,
+            timestamp: timestamp,
+            title: title, 
+            mood: mood,
+            content: content
+        });
+        showToast(`[${date}] 새 일기 저장 완료.`);
+        
+        clearWriteInputs();
+        currentDisplayMode = 'initial';
+        renderDiaryHistory(); 
+        
+    } catch (error) {
+        if (error.name === 'ConstraintError') {
+             alert('⚠️ 일기 저장 실패: 데이터베이스 구조 충돌.');
+        } else {
+             alert('일기 저장에 실패했습니다.');
+        }
+        showToast('일기 저장 오류: ' + error);
+        console.error("Save Diary Error:", error);
+    }
+}
+
+function clearWriteInputs() {
+    diaryTitleInput.value = '';
+    diaryTextInput.value = '';
+    moodSelect.value = '😊'; 
+}
+
+async function renderDiaryHistory() {
+    historyList.innerHTML = '';
+    const searchTerm = searchKeyword.value.toLowerCase().trim(); 
+
+    allEntries = await db.diaries.orderBy('timestamp').reverse().toArray(); 
+    
+    if (searchTerm) {
+        filteredEntries = allEntries.filter(entry => 
+            entry.content.toLowerCase().includes(searchTerm) ||
+            (entry.title ? entry.title.toLowerCase().includes(searchTerm) : false) || 
+            entry.date.includes(searchTerm) 
+        );
+    } else {
+        filteredEntries = allEntries;
+    }
+    
+    if (filteredEntries.length === 0) {
+        historyList.innerHTML = '<div class="empty-message" style="text-align: center; color: #999; padding: 15px;">' + 
+            (searchTerm ? '검색 결과가 없습니다.' : '작성된 일기가 없습니다.') + 
+            '</div>';
+        showMoreBtn.style.display = 'none';
+        paginationContainer.style.display = 'none';
+        return;
+    }
+
+    let entriesToDisplay = [];
+    
+    if (currentDisplayMode === 'initial') {
+        // 처음 3개만 표시
+        entriesToDisplay = filteredEntries.slice(0, 3);
+        showMoreBtn.style.display = filteredEntries.length > 3 ? 'block' : 'none';
+        paginationContainer.style.display = 'none';
+    } else if (currentDisplayMode === 'expanded') {
+        // 10개까지 표시
+        entriesToDisplay = filteredEntries.slice(0, 10);
+        showMoreBtn.style.display = 'none';
+        paginationContainer.style.display = filteredEntries.length > 10 ? 'flex' : 'none';
+        if (filteredEntries.length > 10) {
+            renderPagination();
+        }
+    } else if (currentDisplayMode === 'paginated') {
+        // 페이지별로 10개씩 표시
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        entriesToDisplay = filteredEntries.slice(startIndex, endIndex);
+        showMoreBtn.style.display = 'none';
+        paginationContainer.style.display = 'flex';
+        renderPagination();
+    }
+
+    entriesToDisplay.forEach(entry => {
+        const entryElement = document.createElement('div');
+        entryElement.className = 'diary-entry';
+        
+        const dateToUse = entry.timestamp || entry.date; 
+        const dateObj = new Date(dateToUse); 
+        const formattedDate = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+        const formattedTime = dateObj.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+        entryElement.innerHTML = `
+            <div class="entry-header">
+                <strong>${formattedDate} (${formattedTime})</strong>
+                <span>${entry.mood}</span>
+            </div>
+            <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">${entry.title || '제목 없음'}</div>
+            <div class="entry-content-short">${entry.content}</div>
+            <div class="entry-actions">
+                <button onclick="openDiaryModal(${entry.id}, 'view')">보기</button>
+                <button onclick="openDiaryModal(${entry.id}, 'edit')">수정</button>
+                <button onclick="deleteDiaryEntry(${entry.id})">삭제</button>
+            </div>
+        `;
+        historyList.appendChild(entryElement);
+    });
+}
+
+function renderPagination() {
+    paginationContainer.innerHTML = '';
+    const totalPages = Math.ceil(filteredEntries.length / itemsPerPage);
+    
+    // 이전 버튼
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '←';
+    prevBtn.disabled = currentPage === 1;
+    prevBtn.onclick = () => goToPage(currentPage - 1);
+    paginationContainer.appendChild(prevBtn);
+    
+    // 페이지 번호
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, startPage + 4);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.textContent = i;
+        pageBtn.className = i === currentPage ? 'active' : '';
+        pageBtn.onclick = () => goToPage(i);
+        paginationContainer.appendChild(pageBtn);
+    }
+    
+    // 다음 버튼
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '→';
+    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.onclick = () => goToPage(currentPage + 1);
+    paginationContainer.appendChild(nextBtn);
+}
+
+function goToPage(page) {
+    currentPage = page;
+    currentDisplayMode = 'paginated';
+    renderDiaryHistory();
+    window.scrollTo(0, 0);
+}
+
+showMoreBtn.addEventListener('click', () => {
+    currentDisplayMode = 'expanded';
+    renderDiaryHistory();
+});
+
+async function deleteDiaryEntry(id) {
+    if (confirm('해당 일기를 정말 삭제하시겠습니까?')) {
+        try {
+            await db.diaries.delete(id);
+            showToast(`일기 (ID: ${id}) 삭제 완료`);
+            
+            diaryModal.style.display = 'none';
+            renderDiaryHistory(); 
+        } catch (error) {
+            showToast('일기 삭제 오류: ' + error);
+            console.error("Delete Diary Error:", error);
+        }
+    }
+}
+
+async function openDiaryModal(id, mode) {
+    currentEditingId = id; 
+    
+    try {
+        const entry = await db.diaries.get(id);
+        if (!entry) {
+            alert('기록을 찾을 수 없습니다.');
+            return;
+        }
+
+        const dateToUse = entry.timestamp || entry.date;
+        const dateObj = new Date(dateToUse); 
+        const formattedDate = dateObj.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+        const formattedTime = dateObj.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        modalDate.textContent = `${formattedDate} (${formattedTime})`;
+
+        viewTitle.value = entry.title || '';
+        viewContent.value = entry.content;
+        viewMoodSelect.value = entry.mood;
+
+        if (mode === 'edit') {
+            viewTitle.readOnly = false;
+            viewContent.readOnly = false;
+            viewMoodSelect.disabled = false;
+            modalSaveBtn.style.display = 'inline-block';
+            modalDeleteBtn.style.display = 'inline-block';
+        } else {
+            viewTitle.readOnly = true;
+            viewContent.readOnly = true;
+            viewMoodSelect.disabled = true;
+            modalSaveBtn.style.display = 'none';
+            modalDeleteBtn.style.display = 'none'; 
+        }
+
+        diaryModal.style.display = 'block';
+    } catch (error) {
+        showToast('일기 로드 오류: ' + error);
+        console.error("Modal Load Error:", error);
+    }
+}
+
+async function saveModalDiary() {
+    if (!currentEditingId) return;
+    
+    const title = viewTitle.value.trim();
+    const content = viewContent.value.trim();
+    const mood = viewMoodSelect.value;
+    const id = currentEditingId;
+
+    if (!title || !content) {
+        alert('제목과 내용을 모두 입력해주세요.');
+        return;
+    }
+
+    try {
+        const existingEntry = await db.diaries.get(id);
+        
+        await db.diaries.put({
+            id: id,
+            date: existingEntry.date, 
+            timestamp: existingEntry.timestamp,
+            title: title, 
+            mood: mood,
+            content: content
+        });
+        showToast(`일기 (ID: ${id}) 수정 완료.`);
+        
+        diaryModal.style.display = 'none';
+        renderDiaryHistory(); 
+    } catch (error) {
+        showToast('일기 수정 오류: ' + error);
+        console.error("Modal Save Error:", error);
+    }
+}
+
+function clearSearchAndRender() {
+    searchKeyword.value = ''; 
+    currentDisplayMode = 'initial';
+    currentPage = 1;
+    renderDiaryHistory(); 
+    showToast('전체 목록으로 돌아갑니다.');
+}
+
+function initializeApp() {
+    clearWriteInputs(); 
+    renderDiaryHistory(); 
+    
+    saveBtn.addEventListener('click', saveDiary);
+    clearSearchBtn.addEventListener('click', clearSearchAndRender); 
+    
+    closeBtn.onclick = function() {
+        diaryModal.style.display = 'none';
+    }
+    window.onclick = function(event) {
+        if (event.target == diaryModal) {
+            diaryModal.style.display = 'none';
+        }
+    }
+    modalSaveBtn.addEventListener('click', saveModalDiary);
+    modalDeleteBtn.addEventListener('click', () => {
+        if (currentEditingId) {
+            deleteDiaryEntry(currentEditingId);
+        }
+    });
+
+    searchKeyword.addEventListener('input', () => {
+        currentDisplayMode = 'initial';
+        currentPage = 1;
+        renderDiaryHistory();
+    }); 
+}
+
+window.onload = initializeApp;
+
+</script>
+
+</body>
+</html>
